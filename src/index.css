@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+html,
+body,
+#root {
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Nunito", sans-serif;
+  background-color: #f5f7f4;
+  color: #1d1d1b;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.fc {
+  --fc-border-color: #e5ebe4;
+  --fc-button-bg-color: #1f8240;
+  --fc-button-border-color: #1f8240;
+  --fc-button-hover-bg-color: #176b33;
+  --fc-button-hover-border-color: #176b33;
+  --fc-button-active-bg-color: #76b82a;
+  --fc-button-active-border-color: #76b82a;
+  --fc-today-bg-color: rgba(118, 184, 42, 0.1);
+  --fc-page-bg-color: #ffffff;
+  --fc-neutral-bg-color: #f5f7f4;
+  font-family: "Nunito", sans-serif;
+}
+
+.fc .fc-toolbar-title {
+  color: #1d1d1b;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.fc .fc-button {
+  border-radius: 0.5rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.fc .fc-col-header-cell-cushion,
+.fc .fc-daygrid-day-number {
+  color: #1d1d1b;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.fc .fc-event {
+  border-radius: 0.25rem;
+  cursor: default;
+  font-weight: 700;
+  padding: 0.125rem 0.25rem;
+}
+
+@media (max-width: 640px) {
+  .fc .fc-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .fc .fc-toolbar-chunk {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .fc .fc-toolbar-title {
+    font-size: 1.1rem;
+  }
+
+  .fc .fc-button {
+    padding: 0.35rem 0.55rem;
+  }
+}
