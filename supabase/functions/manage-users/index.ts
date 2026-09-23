@@ -29,7 +29,7 @@ type UserPayload = {
 }
 
 type ManageRequest = {
-  action: 'create' | 'update' | 'delete'
+  action: 'create' | 'update' | 'delete' | 'reset-password'
   id?: string | number
   payload?: Partial<UserPayload>
 }
@@ -53,6 +53,13 @@ const getRequestClient = (request: Request) => createClient(
 
 const generateTemporaryPassword = () => `Icbf${crypto.randomUUID().replaceAll('-', '').slice(0, 12)}!`
 
+const generateResetPassword = () => {
+  const randomValues = new Uint32Array(6)
+  crypto.getRandomValues(randomValues)
+
+  return `ICBF${Array.from(randomValues, (value) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[value % 36]).join('')}`
+}
+
 const validatePayload = (payload: Partial<UserPayload>): payload is UserPayload => (
   typeof payload.nombre === 'string' && payload.nombre.trim().length > 0 &&
   typeof payload.correo === 'string' && payload.correo.trim().length > 0 &&
@@ -67,7 +74,6 @@ const registerAudit = async (adminClient: ReturnType<typeof getAdminClient>, use
     usuario: userId,
     accion: action,
     detalle: detail,
-    fecha: new Date().toISOString(),
   })
 
   if (error) {
@@ -106,6 +112,47 @@ serve(async (request) => {
     const body = await request.json() as ManageRequest
     console.log('REQUEST BODY:', JSON.stringify(body, null, 2))
 
+    if (body.action === 'reset-password') {
+      if (body.id === undefined) {
+        return response({ error: 'El identificador del usuario es obligatorio.' }, 400)
+      }
+
+      const { data: profile, error: profileLookupError } = await adminClient
+        .from('usuarios')
+        .select('nombre, correo')
+        .eq('id', body.id)
+        .single<{ nombre: string | null; correo: string }>()
+
+      if (profileLookupError || !profile) {
+        return response({ error: 'No se encontró el usuario.' }, 404)
+      }
+
+      const { data: authUsers, error: authLookupError } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
+      const authUser = authUsers.users.find((user) => user.email?.toLowerCase() === profile.correo.toLowerCase())
+
+      if (authLookupError || !authUser) {
+        return response({ error: 'No se encontró el usuario en Auth.' }, 404)
+      }
+
+      const temporaryPassword = generateResetPassword()
+      const { error: passwordUpdateError } = await adminClient.auth.admin.updateUserById(
+        authUser.id,
+        { password: temporaryPassword },
+      )
+
+      if (passwordUpdateError) {
+        return response({ error: passwordUpdateError.message }, 400)
+      }
+
+      await registerAudit(
+        adminClient,
+        authData.user.id,
+        'RESET_PASSWORD',
+        `Contraseña restablecida para usuario ${profile.nombre ?? profile.correo}`,
+      )
+
+      return response({ success: true, temporaryPassword })
+    }
 
 
     if (body.action === 'create') {

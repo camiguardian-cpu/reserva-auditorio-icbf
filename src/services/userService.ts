@@ -36,30 +36,17 @@ export type UserPayload = {
 
 type ManageUsersResponse = {
   user?: UserRecord
+  success?: boolean
   temporaryPassword?: string
 }
 
 const invokeManageUsers = async (body: Record<string, unknown>) => {
+  const { data, error } = await supabase.functions.invoke<ManageUsersResponse>('manage-users', { body })
 
+  if (error) {
+    throw new Error(error.message || 'No fue posible completar la operación.')
+  }
 
-const { data, error } = await supabase.functions.invoke<ManageUsersResponse>(
-  'manage-users',
-  { body }
-)
-
-console.log('MANAGE USERS DATA:', data)
-console.log('MANAGE USERS ERROR:', error)
-
-if (error) {
-  throw new Error(
-    JSON.stringify(error, null, 2)
-  )
-}
-
-
-
-
-  
   return data
 }
 
@@ -71,6 +58,16 @@ export const updateUser = (id: string | number, payload: Omit<UserPayload, 'corr
 
 export const deleteUser = (id: string | number) =>
   invokeManageUsers({ action: 'delete', id })
+
+export const resetUserPassword = async (id: string | number): Promise<string> => {
+  const result = await invokeManageUsers({ action: 'reset-password', id })
+
+  if (!result?.success || !result.temporaryPassword) {
+    throw new Error('No fue posible restablecer la contraseña.')
+  }
+
+  return result.temporaryPassword
+}
 
 export const getCurrentUserRole = async (): Promise<UserRole | null> => {
   const { data: authData } = await supabase.auth.getUser()

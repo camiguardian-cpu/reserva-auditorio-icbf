@@ -1,9 +1,9 @@
-import { Edit3, Plus, Search, Trash2, Users } from 'lucide-react'
+import { Edit3, KeyRound, Plus, Search, Trash2, Users } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
+import { ResetPasswordModal } from '../components/ResetPasswordModal'
 import { UserModal } from '../components/UserModal'
-import { deleteUser } from '../services/userService'
-import { DEPENDENCIES } from '../services/userService'
+import { deleteUser, DEPENDENCIES, getCurrentUserRole, resetUserPassword } from '../services/userService'
 import type { Dependency, UserRecord, UserRole } from '../services/userService'
 import { supabase } from '../services/supabase'
 
@@ -21,6 +21,11 @@ export const UsersPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null)
   const [temporaryPassword, setTemporaryPassword] = useState('')
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [resetUser, setResetUser] = useState<UserRecord | null>(null)
+  const [resetPassword, setResetPassword] = useState('')
+  const [resetError, setResetError] = useState('')
+  const [isResettingPassword, setIsResettingPassword] = useState(false)
 
   const loadUsers = async () => {
     setIsLoading(true)
@@ -43,6 +48,7 @@ export const UsersPage = () => {
 
   useEffect(() => {
     void loadUsers()
+    void getCurrentUserRole().then((role) => setIsAdmin(role === 'administrador'))
   }, [])
 
   const filteredUsers = useMemo(() => {
@@ -90,6 +96,40 @@ export const UsersPage = () => {
       await loadUsers()
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : 'No fue posible eliminar el usuario.')
+    }
+  }
+
+  const openResetPasswordModal = (user: UserRecord) => {
+    setResetUser(user)
+    setResetPassword('')
+    setResetError('')
+  }
+
+  const closeResetPasswordModal = () => {
+    if (isResettingPassword) {
+      return
+    }
+
+    setResetUser(null)
+    setResetPassword('')
+    setResetError('')
+  }
+
+  const handleResetPassword = async () => {
+    if (!resetUser) {
+      return
+    }
+
+    setIsResettingPassword(true)
+    setResetError('')
+
+    try {
+      const newPassword = await resetUserPassword(resetUser.id)
+      setResetPassword(newPassword)
+    } catch (resetErrorValue) {
+      setResetError(resetErrorValue instanceof Error ? resetErrorValue.message : 'No fue posible restablecer la contraseña.')
+    } finally {
+      setIsResettingPassword(false)
     }
   }
 
@@ -163,7 +203,7 @@ export const UsersPage = () => {
                       <td className="px-3 py-4"><span className="rounded-full bg-[#1F8240]/10 px-2.5 py-1 text-xs font-bold text-[#1F8240]">{user.rol === 'administrador' ? 'Administrador' : 'Usuario'}</span></td>
                       <td className="px-3 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${user.estado ? 'bg-[#76B82A]/15 text-[#1F8240]' : 'bg-gray-100 text-gray-500'}`}>{user.estado ? 'Activo' : 'Inactivo'}</span></td>
                       <td className="px-3 py-4 text-gray-600">{new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(new Date(user.created_at))}</td>
-                      <td className="px-3 py-4"><div className="flex justify-end gap-2"><button type="button" aria-label={`Editar ${user.nombre ?? user.correo}`} onClick={() => openEditModal(user)} className="rounded-lg p-2 text-[#1F8240] hover:bg-[#76B82A]/15"><Edit3 size={18} /></button><button type="button" aria-label={`Eliminar ${user.nombre ?? user.correo}`} onClick={() => void handleDelete(user)} className="rounded-lg p-2 text-red-600 hover:bg-red-50"><Trash2 size={18} /></button></div></td>
+                      <td className="px-3 py-4"><div className="flex justify-end gap-2"><button type="button" aria-label={`Editar ${user.nombre ?? user.correo}`} onClick={() => openEditModal(user)} className="rounded-lg p-2 text-[#1F8240] hover:bg-[#76B82A]/15"><Edit3 size={18} /></button>{isAdmin && <button type="button" aria-label={`Restablecer contraseña de ${user.nombre ?? user.correo}`} title="Restablecer contraseña" onClick={() => openResetPasswordModal(user)} className="rounded-lg p-2 text-amber-600 hover:bg-amber-50"><KeyRound size={18} /></button>}<button type="button" aria-label={`Eliminar ${user.nombre ?? user.correo}`} onClick={() => void handleDelete(user)} className="rounded-lg p-2 text-red-600 hover:bg-red-50"><Trash2 size={18} /></button></div></td>
                     </tr>
                   ))}
                 </tbody>
@@ -180,6 +220,7 @@ export const UsersPage = () => {
       </div>
 
       {isModalOpen && <UserModal key={editingUser ? String(editingUser.id) : 'new'} user={editingUser} onClose={() => setIsModalOpen(false)} onSaved={handleSaved} />}
+      {resetUser && <ResetPasswordModal user={resetUser} temporaryPassword={resetPassword} isLoading={isResettingPassword} error={resetError} onClose={closeResetPasswordModal} onConfirm={() => void handleResetPassword()} />}
     </section>
   )
 }

@@ -19,7 +19,6 @@ export const registerAudit = async (
     usuario: authData.user.id,
     accion: action,
     detalle: detail,
-    fecha: new Date().toISOString(),
   })
 
   if (error) {
