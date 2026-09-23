@@ -2,8 +2,11 @@ import dayGridPlugin from '@fullcalendar/daygrid'
 import FullCalendar from '@fullcalendar/react'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import { useEffect, useState } from 'react'
-import type { EventInput } from '@fullcalendar/core'
+import type { EventApi, EventInput } from '@fullcalendar/core'
 
+import { ReservationDetailModal } from './ReservationDetailModal'
+import { ReservationEditModal } from './ReservationEditModal'
+import { registerAudit } from '../services/audit'
 import { supabase } from '../services/supabase'
 
 type ReservaRow = {
@@ -18,7 +21,10 @@ type ReservaRow = {
   hora_inicio?: string | null
   hora_fin?: string | null
   estado?: string | boolean | null
+  creado_por?: string | null
 }
+
+type UserRole = 'administrador' | 'usuario'
 
 const isCancelled = (estado: ReservaRow['estado']) => (
   typeof estado === 'string' && ['cancelada', 'cancelado', 'anulada', 'anulado'].includes(estado.toLowerCase())
@@ -54,6 +60,7 @@ const mapReservationToEvent = (reservation: ReservaRow): EventInput | null => {
     end: end ?? undefined,
     extendedProps: {
       description: reservation.descripcion ?? '',
+      createdBy: reservation.creado_por ?? '',
     },
     backgroundColor: '#1F8240',
     borderColor: '#1F8240',
@@ -61,8 +68,17 @@ const mapReservationToEvent = (reservation: ReservaRow): EventInput | null => {
   }
 }
 
-export const AuditoriumCalendar = () => {
+type AuditoriumCalendarProps = {
+  refreshKey?: number
+}
+
+export const AuditoriumCalendar = ({ refreshKey = 0 }: AuditoriumCalendarProps) => {
   const [events, setEvents] = useState<EventInput[]>([])
+  const [selectedEvent, setSelectedEvent] = useState<EventApi | null>(null)
+  const [editingEvent, setEditingEvent] = useState<EventApi | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [role, setRole] = useState<UserRole | null>(null)
+  const [internalRefreshKey, setInternalRefreshKey] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -72,6 +88,22 @@ export const AuditoriumCalendar = () => {
     const loadReservations = async () => {
       setIsLoading(true)
       setError('')
+
+      const { data: authData } = await supabase.auth.getUser()
+      const authenticatedUser = authData.user
+      setCurrentUserId(authenticatedUser?.id ?? null)
+
+      if (authenticatedUser?.email) {
+        const { data: userProfile } = await supabase
+          .from('usuarios')
+          .select('rol')
+          .eq('correo', authenticatedUser.email)
+          .maybeSingle<{ rol: string | null }>()
+
+        setRole(userProfile?.rol === 'administrador' || userProfile?.rol === 'usuario' ? userProfile.rol : null)
+      } else {
+        setRole(null)
+      }
 
       const { data, error: queryError } = await supabase
         .from('reservas')
@@ -100,7 +132,37 @@ export const AuditoriumCalendar = () => {
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [refreshKey, internalRefreshKey])
+
+  const handleDelete = async (event: EventApi) => {
+    if (!window.confirm('¿Está seguro de eliminar esta reserva?')) {
+      return
+    }
+
+    const { error: deleteError } = await supabase
+      .from('reservas')
+      .delete()
+      .eq('id', event.id)
+
+    if (deleteError) {
+      setError('No fue posible eliminar la reserva.')
+      return
+    }
+
+    await registerAudit('ELIMINAR_RESERVA', `Reserva ${event.id} eliminada.`)
+    setSelectedEvent(null)
+    setInternalRefreshKey((current) => current + 1)
+  }
+
+  const handleEdit = (event: EventApi) => {
+    setSelectedEvent(null)
+    setEditingEvent(event)
+  }
+
+  const handleUpdated = () => {
+    setEditingEvent(null)
+    setInternalRefreshKey((current) => current + 1)
+  }
 
   return (
     <div className="mt-8 rounded-xl border border-[#1F8240]/15 bg-white p-3 shadow-sm sm:p-5">
@@ -138,6 +200,13 @@ export const AuditoriumCalendar = () => {
           contentHeight="auto"
           aspectRatio={1.7}
           events={events}
+          eventTimeFormat={{
+            hour: '2-digit',
+            minute: '2-digit',
+            meridiem: 'short',
+            hour12: true,
+          }}
+          eventClick={(clickInfo) => setSelectedEvent(clickInfo.event)}
           editable={false}
           selectable={false}
           eventStartEditable={false}
@@ -148,6 +217,20 @@ export const AuditoriumCalendar = () => {
           noEventsText="No hay reservas para mostrar"
         />
       )}
+      <ReservationDetailModal
+        event={selectedEvent}
+        currentUserId={currentUserId}
+        role={role}
+        onClose={() => setSelectedEvent(null)}
+        onEdit={handleEdit}
+        onDelete={(event) => void handleDelete(event)}
+      />
+      <ReservationEditModal
+        key={editingEvent?.id ?? 'no-edit'}
+        event={editingEvent}
+        onClose={() => setEditingEvent(null)}
+        onUpdated={handleUpdated}
+      />
     </div>
   )
 }

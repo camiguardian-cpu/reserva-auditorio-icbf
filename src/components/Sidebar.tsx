@@ -1,8 +1,9 @@
-import { CalendarDays, LayoutDashboard, LogOut, Menu, X } from 'lucide-react'
-import { useState } from 'react'
+import { CalendarDays, LayoutDashboard, LogOut, Menu, Users, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 
 import { supabase } from '../services/supabase'
+import { getCurrentUserRole } from '../services/userService'
 
 const navigation = [
   { label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
@@ -11,7 +12,25 @@ const navigation = [
 
 export const Sidebar = () => {
   const [isOpen, setIsOpen] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadRole = async () => {
+      const role = await getCurrentUserRole()
+      if (isMounted) {
+        setIsAdmin(role === 'administrador')
+      }
+    }
+
+    void loadRole()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -60,7 +79,7 @@ export const Sidebar = () => {
         </div>
 
         <nav className="flex-1 space-y-2 px-4 py-6" aria-label="Navegación principal">
-          {navigation.map(({ label, to, icon: Icon }) => (
+          {[...navigation, ...(isAdmin ? [{ label: 'Usuarios', to: '/usuarios', icon: Users }] : [])].map(({ label, to, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
