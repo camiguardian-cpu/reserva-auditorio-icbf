@@ -94,7 +94,10 @@ if (!usuario || usuario.length === 0) {
             <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#d8f0b9]">ICBF</p>
             <h1 className="mt-12 text-4xl font-extrabold leading-tight">Reserva Auditorio<br />Regional Putumayo</h1>
           </div>
-          <p className="relative max-w-xs text-sm leading-6 text-white/75">Gestión organizada de espacios institucionales para el servicio de la comunidad.</p>
+          <div className="relative max-w-md space-y-2 text-white/80">
+            <h2 className="text-base font-extrabold text-white sm:text-lg">Información importante</h2>
+            <p className="text-xs leading-5 sm:text-sm sm:leading-6">Esta aplicación tiene como finalidad apoyar la gestión de las reservas del Auditorio del ICBF Regional Putumayo. El sistema no recolecta ni procesa datos personales sensibles o privados; únicamente administra la información necesaria para la programación y seguimiento de los eventos institucionales.</p>
+          </div>
         </section>
 
         <section className="p-7 sm:p-12">
