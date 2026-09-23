@@ -1,5 +1,22 @@
-import { CalendarClock, FileText, Pencil, Trash2, X } from 'lucide-react'
+import { Building2, BriefcaseBusiness, CalendarClock, FileText, Mail, Pencil, ShieldCheck, Trash2, UserRound, X } from 'lucide-react'
 import type { EventApi } from '@fullcalendar/core'
+import { useEffect, useState } from 'react'
+
+import { supabase } from '../services/supabase'
+
+type ResponsibleUser = {
+  nombre: string | null
+  correo: string
+  dependencia: string | null
+  cargo: string | null
+  rol: string | null
+}
+
+type ReservationMetadata = {
+  creado_por: string | null
+  estado: string | boolean | null
+  created_at: string | null
+}
 
 type ReservationDetailModalProps = {
   event: EventApi | null
@@ -30,6 +47,78 @@ export const ReservationDetailModal = ({
   onEdit,
   onDelete,
 }: ReservationDetailModalProps) => {
+  const [responsibleUser, setResponsibleUser] = useState<ResponsibleUser | null>(null)
+  const [reservationMetadata, setReservationMetadata] = useState<ReservationMetadata | null>(null)
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false)
+  const [userError, setUserError] = useState('')
+
+  useEffect(() => {
+    if (!event) {
+      setResponsibleUser(null)
+      setReservationMetadata(null)
+      setUserError('')
+      return
+    }
+
+    let isMounted = true
+
+    const loadDetails = async () => {
+      setIsLoadingDetails(true)
+      setResponsibleUser(null)
+      setReservationMetadata(null)
+      setUserError('')
+
+      const { data: reservation, error: reservationError } = await supabase
+        .from('reservas')
+        .select('creado_por, estado, created_at')
+        .eq('id', event.id)
+        .maybeSingle<ReservationMetadata>()
+
+      if (!isMounted) {
+        return
+      }
+
+      if (reservationError) {
+        setUserError('No fue posible recuperar la información del usuario responsable.')
+        setIsLoadingDetails(false)
+        return
+      }
+
+      setReservationMetadata(reservation)
+      const createdBy = reservation?.creado_por ?? String(event.extendedProps.createdBy ?? '')
+
+      if (!createdBy) {
+        setUserError('Usuario responsable no disponible.')
+        setIsLoadingDetails(false)
+        return
+      }
+
+      const { data: user, error: userQueryError } = await supabase
+        .from('usuarios')
+        .select('nombre, correo, dependencia, cargo, rol')
+        .eq('id', createdBy)
+        .maybeSingle<ResponsibleUser>()
+
+      if (!isMounted) {
+        return
+      }
+
+      if (userQueryError || !user) {
+        setUserError('No fue posible recuperar la información del usuario responsable.')
+      } else {
+        setResponsibleUser(user)
+      }
+
+      setIsLoadingDetails(false)
+    }
+
+    void loadDetails()
+
+    return () => {
+      isMounted = false
+    }
+  }, [event])
+
   if (!event) {
     return null
   }
@@ -37,6 +126,8 @@ export const ReservationDetailModal = ({
   const description = String(event.extendedProps.description ?? '').trim()
   const createdBy = String(event.extendedProps.createdBy ?? '')
   const canManage = role === 'administrador' || (role === 'usuario' && createdBy === currentUserId)
+  const status = reservationMetadata?.estado ?? event.extendedProps.status
+  const createdAt = reservationMetadata?.created_at ?? event.extendedProps.createdAt
 
   return (
     <div
@@ -70,9 +161,15 @@ export const ReservationDetailModal = ({
           <div className="flex gap-3">
             <div className="mt-0.5 rounded-lg bg-[#76B82A]/15 p-2 text-[#1F8240]"><CalendarClock size={19} /></div>
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Horario</p>
-              <p className="mt-1 text-sm font-bold leading-6 text-[#1D1D1B]">{formatDateTime(event.start)}</p>
-              <p className="text-sm text-gray-600">Hasta {formatDateTime(event.end)}</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Datos de la reserva</p>
+              <dl className="mt-2 space-y-1 text-sm leading-6">
+                <div><dt className="inline font-bold text-gray-500">Fecha: </dt><dd className="inline text-[#1D1D1B]">{formatDate(event.start)}</dd></div>
+                <div><dt className="inline font-bold text-gray-500">Hora inicio: </dt><dd className="inline text-[#1D1D1B]">{formatTime(event.start)}</dd></div>
+                <div><dt className="inline font-bold text-gray-500">Hora fin: </dt><dd className="inline text-[#1D1D1B]">{formatTime(event.end)}</dd></div>
+                <div><dt className="inline font-bold text-gray-500">Duración: </dt><dd className="inline text-[#1D1D1B]">{formatDuration(event.start, event.end)}</dd></div>
+                <div><dt className="inline font-bold text-gray-500">Estado: </dt><dd className="inline text-[#1D1D1B]">{formatStatus(status)}</dd></div>
+                <div><dt className="inline font-bold text-gray-500">Fecha de creación: </dt><dd className="inline text-[#1D1D1B]">{createdAt ? formatDateTime(new Date(String(createdAt))) : 'No registrada'}</dd></div>
+              </dl>
             </div>
           </div>
 
@@ -82,6 +179,19 @@ export const ReservationDetailModal = ({
               <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Descripción</p>
               <p className="mt-1 whitespace-pre-wrap wrap-break-word text-sm leading-6 text-[#1D1D1B]">{description || 'Sin descripción registrada.'}</p>
             </div>
+          </div>
+
+          <div className="rounded-xl border border-[#1F8240]/15 bg-[#1F8240]/5 p-4">
+            <div className="mb-4 flex items-center gap-3"><div className="rounded-lg bg-[#76B82A]/20 p-2 text-[#1F8240]"><UserRound size={19} /></div><p className="text-sm font-extrabold text-[#1D1D1B]">Usuario responsable</p></div>
+            {isLoadingDetails ? <p className="text-sm text-gray-500">Cargando información...</p> : userError ? <p role="alert" className="text-sm font-bold text-red-700">{userError}</p> : responsibleUser && (
+              <dl className="space-y-3 text-sm">
+                <div className="flex gap-3"><UserRound size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Nombre completo</dt><dd className="text-[#1D1D1B]">{responsibleUser.nombre || 'No registrado'}</dd></div></div>
+                <div className="flex gap-3"><Mail size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Correo electrónico</dt><dd className="break-all text-[#1D1D1B]">{responsibleUser.correo}</dd></div></div>
+                <div className="flex gap-3"><Building2 size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Dependencia</dt><dd className="text-[#1D1D1B]">{responsibleUser.dependencia || 'No registrada'}</dd></div></div>
+                <div className="flex gap-3"><BriefcaseBusiness size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Cargo</dt><dd className="text-[#1D1D1B]">{responsibleUser.cargo || 'No registrado'}</dd></div></div>
+                <div className="flex gap-3"><ShieldCheck size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Rol</dt><dd className="text-[#1D1D1B]">{responsibleUser.rol || 'No registrado'}</dd></div></div>
+              </dl>
+            )}
           </div>
         </div>
 
@@ -103,4 +213,34 @@ export const ReservationDetailModal = ({
       </article>
     </div>
   )
+}
+
+const formatDate = (date: Date | null) => date
+  ? new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(date)
+  : 'No especificada'
+
+const formatTime = (date: Date | null) => date
+  ? new Intl.DateTimeFormat('es-CO', { timeStyle: 'short', hour12: true }).format(date)
+  : 'No especificada'
+
+const formatDuration = (start: Date | null, end: Date | null) => {
+  if (!start || !end || end <= start) {
+    return 'No especificada'
+  }
+
+  const totalMinutes = Math.round((end.getTime() - start.getTime()) / 60000)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+
+  return [hours ? `${hours} h` : '', minutes ? `${minutes} min` : '']
+    .filter(Boolean)
+    .join(' ') || '0 min'
+}
+
+const formatStatus = (status: ReservationMetadata['estado']) => {
+  if (typeof status === 'boolean') {
+    return status ? 'Activo' : 'Inactivo'
+  }
+
+  return status?.trim() || 'No especificado'
 }
