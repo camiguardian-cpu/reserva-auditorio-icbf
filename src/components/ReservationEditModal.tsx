@@ -5,6 +5,10 @@ import type { EventApi } from '@fullcalendar/core'
 
 import { registerAudit } from '../services/audit'
 import { supabase } from '../services/supabase'
+import { DEPENDENCIES } from '../services/userService'
+import { EVENT_TYPES, type EventType } from '../types/reservation'
+import { dateToReservationTime, reservationTimeToDate, type ReservationTimeParts } from '../types/reservationTime'
+import { ReservationDateTimeFields } from './ReservationDateTimeFields'
 
 type ReservationEditModalProps = {
   event: EventApi | null
@@ -22,18 +26,12 @@ type ReservationRow = {
 type ReservationForm = {
   titulo: string
   descripcion: string
-  fechaInicio: string
-  fechaFin: string
-}
-
-const toLocalInputValue = (date: Date | null) => {
-  if (!date) {
-    return ''
-  }
-
-  const pad = (value: number) => String(value).padStart(2, '0')
-
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  fechaInicio: ReservationTimeParts
+  fechaFin: ReservationTimeParts
+  responsableEvento: string
+  dependenciaSolicitante: string
+  cargoSolicitante: string
+  tipoEvento: EventType | ''
 }
 
 const isCancelled = (estado?: string | null) => (
@@ -44,8 +42,14 @@ export const ReservationEditModal = ({ event, onClose, onUpdated }: ReservationE
   const [form, setForm] = useState<ReservationForm>(() => ({
     titulo: event?.title ?? '',
     descripcion: String(event?.extendedProps.description ?? ''),
-    fechaInicio: toLocalInputValue(event?.start ?? null),
-    fechaFin: toLocalInputValue(event?.end ?? null),
+    fechaInicio: dateToReservationTime(event?.start ?? null),
+    fechaFin: dateToReservationTime(event?.end ?? null),
+    responsableEvento: String(event?.extendedProps.applicantName ?? ''),
+    dependenciaSolicitante: String(event?.extendedProps.applicantDependency ?? ''),
+    cargoSolicitante: String(event?.extendedProps.applicantPosition ?? ''),
+    tipoEvento: EVENT_TYPES.includes(String(event?.extendedProps.eventType ?? '') as EventType)
+      ? String(event?.extendedProps.eventType) as EventType
+      : '',
   }))
   const [error, setError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -63,15 +67,15 @@ export const ReservationEditModal = ({ event, onClose, onUpdated }: ReservationE
     submitEvent.preventDefault()
     setError('')
 
-    const start = new Date(form.fechaInicio)
-    const end = new Date(form.fechaFin)
+    const start = reservationTimeToDate(form.fechaInicio)
+    const end = reservationTimeToDate(form.fechaFin)
 
-    if (!form.titulo.trim() || !form.fechaInicio || !form.fechaFin) {
-      setError('Completa todos los campos obligatorios.')
+    if (!form.titulo.trim() || !start || !end || !form.responsableEvento.trim() || !form.dependenciaSolicitante || !form.cargoSolicitante.trim() || !form.tipoEvento) {
+      setError('Completa todos los campos obligatorios, incluido el solicitante del evento.')
       return
     }
 
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+    if (end <= start) {
       setError('La fecha y hora final deben ser posteriores a las iniciales.')
       return
     }
@@ -109,6 +113,10 @@ export const ReservationEditModal = ({ event, onClose, onUpdated }: ReservationE
           descripcion: form.descripcion.trim() || null,
           fecha_inicio: start.toISOString(),
           fecha_fin: end.toISOString(),
+          responsable_evento: form.responsableEvento.trim(),
+          dependencia_solicitante: form.dependenciaSolicitante,
+          cargo_solicitante: form.cargoSolicitante.trim(),
+          tipo_evento: form.tipoEvento,
         })
         .eq('id', event.id)
 
@@ -116,7 +124,7 @@ export const ReservationEditModal = ({ event, onClose, onUpdated }: ReservationE
         throw new Error(updateError.message)
       }
 
-      await registerAudit('EDITAR_RESERVA', `Reserva ${event.id} editada.`)
+      await registerAudit('EDITAR_RESERVA', `Reserva ${event.id} editada. TIPO_EVENTO: ${form.tipoEvento}.`)
       onUpdated()
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'No fue posible editar la reserva.')
@@ -142,15 +150,37 @@ export const ReservationEditModal = ({ event, onClose, onUpdated }: ReservationE
             <input required value={form.titulo} onChange={(inputEvent) => updateField('titulo', inputEvent.target.value)} className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-3 font-normal outline-none focus:border-[#1F8240] focus:ring-2 focus:ring-[#76B82A]/30" />
           </label>
 
+          <section className="space-y-4 border-t border-gray-100 pt-5" aria-labelledby="edit-applicant-title">
+            <h3 id="edit-applicant-title" className="text-base font-extrabold text-[#1D1D1B]">Solicitante del evento</h3>
+            <label className="block text-sm font-bold text-[#1D1D1B]">
+              Nombre del solicitante <span className="text-red-600">*</span>
+              <input required value={form.responsableEvento} onChange={(inputEvent) => updateField('responsableEvento', inputEvent.target.value)} className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-3 font-normal outline-none focus:border-[#1F8240] focus:ring-2 focus:ring-[#76B82A]/30" />
+            </label>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <label className="block text-sm font-bold text-[#1D1D1B]">
+                Dependencia <span className="text-red-600">*</span>
+                <select required value={form.dependenciaSolicitante} onChange={(inputEvent) => updateField('dependenciaSolicitante', inputEvent.target.value)} className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 font-normal outline-none focus:border-[#1F8240] focus:ring-2 focus:ring-[#76B82A]/30">
+                  <option value="">Selecciona una dependencia</option>
+                  {DEPENDENCIES.map((dependency) => <option key={dependency} value={dependency}>{dependency}</option>)}
+                </select>
+              </label>
+              <label className="block text-sm font-bold text-[#1D1D1B]">
+                Cargo <span className="text-red-600">*</span>
+                <input required value={form.cargoSolicitante} onChange={(inputEvent) => updateField('cargoSolicitante', inputEvent.target.value)} className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-3 font-normal outline-none focus:border-[#1F8240] focus:ring-2 focus:ring-[#76B82A]/30" />
+              </label>
+            </div>
+            <label className="block text-sm font-bold text-[#1D1D1B]">
+              Tipo de evento <span className="text-red-600">*</span>
+              <select required value={form.tipoEvento} onChange={(inputEvent) => updateField('tipoEvento', inputEvent.target.value as EventType | '')} className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 font-normal outline-none focus:border-[#1F8240] focus:ring-2 focus:ring-[#76B82A]/30">
+                <option value="">Selecciona un tipo de evento</option>
+                {EVENT_TYPES.map((eventType) => <option key={eventType} value={eventType}>{eventType}</option>)}
+              </select>
+            </label>
+          </section>
+
           <div className="grid gap-5 sm:grid-cols-2">
-            <label className="block text-sm font-bold text-[#1D1D1B]">
-              Inicio <span className="text-red-600">*</span>
-              <input required type="datetime-local" value={form.fechaInicio} onChange={(inputEvent) => updateField('fechaInicio', inputEvent.target.value)} className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-3 font-normal outline-none focus:border-[#1F8240] focus:ring-2 focus:ring-[#76B82A]/30" />
-            </label>
-            <label className="block text-sm font-bold text-[#1D1D1B]">
-              Finalización <span className="text-red-600">*</span>
-              <input required type="datetime-local" value={form.fechaFin} onChange={(inputEvent) => updateField('fechaFin', inputEvent.target.value)} className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-3 font-normal outline-none focus:border-[#1F8240] focus:ring-2 focus:ring-[#76B82A]/30" />
-            </label>
+            <ReservationDateTimeFields label="Inicio" value={form.fechaInicio} onChange={(value) => setForm((current) => ({ ...current, fechaInicio: value }))} />
+            <ReservationDateTimeFields label="Finalización" value={form.fechaFin} onChange={(value) => setForm((current) => ({ ...current, fechaFin: value }))} />
           </div>
 
           <label className="block text-sm font-bold text-[#1D1D1B]">

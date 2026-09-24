@@ -1,4 +1,4 @@
-import { ArrowRight, Building2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Building2 } from 'lucide-react'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -125,6 +125,10 @@ if (!usuario) {
                 {!isLoading && <ArrowRight size={18} />}
               </button>
             </form>
+            <button type="button" onClick={() => navigate('/')} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[#1F8240]/25 px-4 py-3 text-sm font-extrabold text-[#1F8240] transition hover:bg-[#f5f7f4] focus:outline-none focus:ring-2 focus:ring-[#76B82A] focus:ring-offset-2">
+              <ArrowLeft size={17} />
+              Volver al Calendario
+            </button>
           </div>
         </section>
       </div>

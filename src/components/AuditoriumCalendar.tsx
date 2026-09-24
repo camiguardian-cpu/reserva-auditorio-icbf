@@ -22,6 +22,10 @@ type ReservaRow = {
   hora_fin?: string | null
   estado?: string | boolean | null
   creado_por?: string | null
+  responsable_evento?: string | null
+  dependencia_solicitante?: string | null
+  cargo_solicitante?: string | null
+  tipo_evento?: string | null
 }
 
 type UserRole = 'administrador' | 'usuario'
@@ -61,6 +65,10 @@ const mapReservationToEvent = (reservation: ReservaRow): EventInput | null => {
     extendedProps: {
       description: reservation.descripcion ?? '',
       createdBy: reservation.creado_por ?? '',
+      applicantName: reservation.responsable_evento ?? '',
+      applicantDependency: reservation.dependencia_solicitante ?? '',
+      applicantPosition: reservation.cargo_solicitante ?? '',
+      eventType: reservation.tipo_evento ?? '',
     },
     backgroundColor: '#1F8240',
     borderColor: '#1F8240',

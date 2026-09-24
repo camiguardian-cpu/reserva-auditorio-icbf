@@ -1,8 +1,10 @@
-import { Building2, BriefcaseBusiness, CalendarClock, FileText, Mail, Pencil, ShieldCheck, Trash2, UserRound, X } from 'lucide-react'
+import { Building2, BriefcaseBusiness, CalendarClock, FileDown, FileText, Mail, Pencil, ShieldCheck, Trash2, UserRound, X } from 'lucide-react'
 import type { EventApi } from '@fullcalendar/core'
 import { useEffect, useState } from 'react'
 
+import { registerAudit } from '../services/audit'
 import { supabase } from '../services/supabase'
+import { generateReservationPdf } from '../services/reservationPdf'
 
 type ResponsibleUser = {
   nombre: string | null
@@ -16,6 +18,10 @@ type ReservationMetadata = {
   creado_por: string | null
   estado: string | boolean | null
   created_at: string | null
+  responsable_evento: string | null
+  dependencia_solicitante: string | null
+  cargo_solicitante: string | null
+  tipo_evento: string | null
 }
 
 type ReservationDetailModalProps = {
@@ -33,8 +39,11 @@ const formatDateTime = (date: Date | null) => {
   }
 
   return new Intl.DateTimeFormat('es-CO', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
     hour12: true,
   }).format(date)
 }
@@ -47,16 +56,18 @@ export const ReservationDetailModal = ({
   onEdit,
   onDelete,
 }: ReservationDetailModalProps) => {
-  const [responsibleUser, setResponsibleUser] = useState<ResponsibleUser | null>(null)
+  const [registrarUser, setRegistrarUser] = useState<ResponsibleUser | null>(null)
   const [reservationMetadata, setReservationMetadata] = useState<ReservationMetadata | null>(null)
   const [isLoadingDetails, setIsLoadingDetails] = useState(false)
   const [userError, setUserError] = useState('')
+  const [pdfError, setPdfError] = useState('')
 
   useEffect(() => {
     if (!event) {
-      setResponsibleUser(null)
+      setRegistrarUser(null)
       setReservationMetadata(null)
       setUserError('')
+      setPdfError('')
       return
     }
 
@@ -64,13 +75,14 @@ export const ReservationDetailModal = ({
 
     const loadDetails = async () => {
       setIsLoadingDetails(true)
-      setResponsibleUser(null)
+      setRegistrarUser(null)
       setReservationMetadata(null)
       setUserError('')
+      setPdfError('')
 
       const { data: reservation, error: reservationError } = await supabase
         .from('reservas')
-        .select('creado_por, estado, created_at')
+        .select('creado_por, estado, created_at, responsable_evento, dependencia_solicitante, cargo_solicitante, tipo_evento')
         .eq('id', event.id)
         .maybeSingle<ReservationMetadata>()
 
@@ -106,7 +118,7 @@ export const ReservationDetailModal = ({
       if (userQueryError || !user) {
         setUserError('No fue posible recuperar la información del usuario responsable.')
       } else {
-        setResponsibleUser(user)
+        setRegistrarUser(user)
       }
 
       setIsLoadingDetails(false)
@@ -128,6 +140,49 @@ export const ReservationDetailModal = ({
   const canManage = role === 'administrador' || (role === 'usuario' && createdBy === currentUserId)
   const status = reservationMetadata?.estado ?? event.extendedProps.status
   const createdAt = reservationMetadata?.created_at ?? event.extendedProps.createdAt
+  const applicantName = reservationMetadata?.responsable_evento ?? String(event.extendedProps.applicantName ?? '')
+  const applicantDependency = reservationMetadata?.dependencia_solicitante ?? String(event.extendedProps.applicantDependency ?? '')
+  const applicantPosition = reservationMetadata?.cargo_solicitante ?? String(event.extendedProps.applicantPosition ?? '')
+  const eventType = reservationMetadata?.tipo_evento ?? String(event.extendedProps.eventType ?? '')
+
+  const handleDownloadPdf = async () => {
+    setPdfError('')
+
+    try {
+      if (!registrarUser) {
+        throw new Error('Usuario que registró la reserva no disponible.')
+      }
+
+      generateReservationPdf({
+        id: event.id,
+        nombre: event.title,
+        tipoEvento: eventType || 'No especificado',
+        descripcion: description || 'Sin descripción registrada.',
+        fecha: formatDate(event.start),
+        horaInicio: formatTime(event.start),
+        horaFin: formatTime(event.end),
+        duracion: formatDuration(event.start, event.end),
+        estado: formatStatus(status),
+        fechaCreacion: createdAt ? formatDateTime(new Date(String(createdAt))) : 'No registrada',
+        solicitante: {
+          nombre: applicantName || 'No registrado',
+          dependencia: applicantDependency || 'No registrada',
+          cargo: applicantPosition || 'No registrado',
+        },
+        registrador: {
+          nombre: registrarUser.nombre || 'No registrado',
+          correo: registrarUser.correo,
+          dependencia: registrarUser.dependencia || 'No registrada',
+          cargo: registrarUser.cargo || 'No registrado',
+          rol: registrarUser.rol || 'No registrado',
+        },
+      })
+
+      await registerAudit('EXPORTAR_RESERVA_PDF', 'Reserva exportada a PDF')
+    } catch {
+      setPdfError('No fue posible generar el documento PDF.')
+    }
+  }
 
   return (
     <div
@@ -164,6 +219,7 @@ export const ReservationDetailModal = ({
               <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Datos de la reserva</p>
               <dl className="mt-2 space-y-1 text-sm leading-6">
                 <div><dt className="inline font-bold text-gray-500">Fecha: </dt><dd className="inline text-[#1D1D1B]">{formatDate(event.start)}</dd></div>
+                <div><dt className="inline font-bold text-gray-500">Tipo de evento: </dt><dd className="inline text-[#1D1D1B]">{eventType || 'No especificado'}</dd></div>
                 <div><dt className="inline font-bold text-gray-500">Hora inicio: </dt><dd className="inline text-[#1D1D1B]">{formatTime(event.start)}</dd></div>
                 <div><dt className="inline font-bold text-gray-500">Hora fin: </dt><dd className="inline text-[#1D1D1B]">{formatTime(event.end)}</dd></div>
                 <div><dt className="inline font-bold text-gray-500">Duración: </dt><dd className="inline text-[#1D1D1B]">{formatDuration(event.start, event.end)}</dd></div>
@@ -181,31 +237,30 @@ export const ReservationDetailModal = ({
             </div>
           </div>
 
+          <div className="rounded-xl border border-[#76B82A]/30 bg-[#76B82A]/10 p-4">
+            <div className="mb-4 flex items-center gap-3"><div className="rounded-lg bg-[#76B82A]/25 p-2 text-[#1F8240]"><UserRound size={19} /></div><p className="text-sm font-extrabold text-[#1D1D1B]">Solicitante del evento</p></div>
+            <dl className="space-y-3 text-sm">
+              <div className="flex gap-3"><UserRound size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Nombre</dt><dd className="text-[#1D1D1B]">{applicantName || 'No registrado'}</dd></div></div>
+              <div className="flex gap-3"><Building2 size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Dependencia</dt><dd className="text-[#1D1D1B]">{applicantDependency || 'No registrada'}</dd></div></div>
+              <div className="flex gap-3"><BriefcaseBusiness size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Cargo</dt><dd className="text-[#1D1D1B]">{applicantPosition || 'No registrado'}</dd></div></div>
+            </dl>
+          </div>
+
           <div className="rounded-xl border border-[#1F8240]/15 bg-[#1F8240]/5 p-4">
-            <div className="mb-4 flex items-center gap-3"><div className="rounded-lg bg-[#76B82A]/20 p-2 text-[#1F8240]"><UserRound size={19} /></div><p className="text-sm font-extrabold text-[#1D1D1B]">Usuario responsable</p></div>
-            {isLoadingDetails ? <p className="text-sm text-gray-500">Cargando información...</p> : userError ? <p role="alert" className="text-sm font-bold text-red-700">{userError}</p> : responsibleUser && (
+            <div className="mb-4 flex items-center gap-3"><div className="rounded-lg bg-[#76B82A]/20 p-2 text-[#1F8240]"><UserRound size={19} /></div><p className="text-sm font-extrabold text-[#1D1D1B]">Usuario que registró la reserva</p></div>
+            {isLoadingDetails ? <p className="text-sm text-gray-500">Cargando información...</p> : userError ? <p role="alert" className="text-sm font-bold text-red-700">{userError}</p> : registrarUser && (
               <dl className="space-y-3 text-sm">
-                <div className="flex gap-3"><UserRound size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Nombre completo</dt><dd className="text-[#1D1D1B]">{responsibleUser.nombre || 'No registrado'}</dd></div></div>
-                <div className="flex gap-3"><Mail size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Correo electrónico</dt><dd className="break-all text-[#1D1D1B]">{responsibleUser.correo}</dd></div></div>
-                <div className="flex gap-3"><Building2 size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Dependencia</dt><dd className="text-[#1D1D1B]">{responsibleUser.dependencia || 'No registrada'}</dd></div></div>
-                <div className="flex gap-3"><BriefcaseBusiness size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Cargo</dt><dd className="text-[#1D1D1B]">{responsibleUser.cargo || 'No registrado'}</dd></div></div>
-                <div className="flex gap-3"><ShieldCheck size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Rol</dt><dd className="text-[#1D1D1B]">{responsibleUser.rol || 'No registrado'}</dd></div></div>
+                <div className="flex gap-3"><UserRound size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Nombre completo</dt><dd className="text-[#1D1D1B]">{registrarUser.nombre || 'No registrado'}</dd></div></div>
+                <div className="flex gap-3"><Mail size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Correo electrónico</dt><dd className="break-all text-[#1D1D1B]">{registrarUser.correo}</dd></div></div>
+                <div className="flex gap-3"><Building2 size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Dependencia</dt><dd className="text-[#1D1D1B]">{registrarUser.dependencia || 'No registrada'}</dd></div></div>
+                <div className="flex gap-3"><ShieldCheck size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Rol</dt><dd className="text-[#1D1D1B]">{registrarUser.rol || 'No registrado'}</dd></div></div>
               </dl>
             )}
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <div className="mb-4 flex items-center gap-3"><div className="rounded-lg bg-[#1F8240]/10 p-2 text-[#1F8240]"><ShieldCheck size={19} /></div><p className="text-sm font-extrabold text-[#1D1D1B]">Información del creador</p></div>
-            {isLoadingDetails ? <p className="text-sm text-gray-500">Cargando información...</p> : userError ? <p className="text-sm text-gray-500">Información no disponible.</p> : responsibleUser && (
-              <dl className="space-y-2 text-sm">
-                <div><dt className="font-bold text-gray-500">Usuario creador</dt><dd className="text-[#1D1D1B]">{responsibleUser.nombre || 'No registrado'}</dd></div>
-                <div><dt className="font-bold text-gray-500">Dependencia</dt><dd className="text-[#1D1D1B]">{responsibleUser.dependencia || 'No registrada'}</dd></div>
-                <div><dt className="font-bold text-gray-500">Cargo</dt><dd className="text-[#1D1D1B]">{responsibleUser.cargo || 'No registrado'}</dd></div>
-              </dl>
-            )}
-          </div>
         </div>
 
+        {pdfError && <p role="alert" className="border-t border-red-100 bg-red-50 px-6 py-3 text-sm font-bold text-red-700">{pdfError}</p>}
         <div className="flex flex-col-reverse gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4 sm:flex-row sm:justify-end">
           {canManage && (
             <>
@@ -219,6 +274,10 @@ export const ReservationDetailModal = ({
               </button>
             </>
           )}
+          <button type="button" onClick={() => void handleDownloadPdf()} disabled={isLoadingDetails || !registrarUser} className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#1F8240]/25 px-4 py-2.5 text-sm font-extrabold text-[#1F8240] transition hover:bg-[#1F8240]/5 disabled:cursor-not-allowed disabled:opacity-50">
+            <FileDown size={17} />
+            Descargar PDF
+          </button>
           <button type="button" onClick={onClose} className="rounded-lg bg-[#1F8240] px-5 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#176b33] focus:outline-none focus:ring-2 focus:ring-[#76B82A] focus:ring-offset-2">Cerrar</button>
         </div>
       </article>
@@ -227,7 +286,7 @@ export const ReservationDetailModal = ({
 }
 
 const formatDate = (date: Date | null) => date
-  ? new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(date)
+  ? new Intl.DateTimeFormat('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date)
   : 'No especificada'
 
 const formatTime = (date: Date | null) => date

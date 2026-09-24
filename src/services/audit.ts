@@ -4,6 +4,7 @@ export type AuditAction =
   | 'CREAR_RESERVA'
   | 'EDITAR_RESERVA'
   | 'ELIMINAR_RESERVA'
+  | 'EXPORTAR_RESERVA_PDF'
 
 export const registerAudit = async (
   action: AuditAction,
