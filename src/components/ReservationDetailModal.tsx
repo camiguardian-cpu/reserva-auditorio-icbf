@@ -1,4 +1,4 @@
-import { Building2, BriefcaseBusiness, CalendarClock, FileDown, FileText, Mail, Pencil, ShieldCheck, Trash2, UserRound, X } from 'lucide-react'
+import { Building2, BriefcaseBusiness, CalendarClock, FileDown, FileText, Pencil, Trash2, UserRound, X } from 'lucide-react'
 import type { EventApi } from '@fullcalendar/core'
 import { useEffect, useState } from 'react'
 
@@ -8,10 +8,7 @@ import { generateReservationPdf } from '../services/reservationPdf'
 
 type ResponsibleUser = {
   nombre: string | null
-  correo: string
   dependencia: string | null
-  cargo: string | null
-  rol: string | null
 }
 
 type ReservationMetadata = {
@@ -107,7 +104,7 @@ export const ReservationDetailModal = ({
 
       const { data: user, error: userQueryError } = await supabase
         .from('usuarios')
-        .select('nombre, correo, dependencia, cargo, rol')
+        .select('nombre, dependencia')
         .eq('id', createdBy)
         .maybeSingle<ResponsibleUser>()
 
@@ -171,10 +168,7 @@ export const ReservationDetailModal = ({
         },
         registrador: {
           nombre: registrarUser.nombre || 'No registrado',
-          correo: registrarUser.correo,
           dependencia: registrarUser.dependencia || 'No registrada',
-          cargo: registrarUser.cargo || 'No registrado',
-          rol: registrarUser.rol || 'No registrado',
         },
       })
 
@@ -196,7 +190,7 @@ export const ReservationDetailModal = ({
         }
       }}
     >
-      <article className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl">
+      <article className="w-full max-w-md overflow-x-hidden overflow-y-auto rounded-xl bg-white shadow-2xl">
         <div className="flex items-start justify-between bg-[#1F8240] px-6 py-5 text-white">
           <div className="pr-4">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#d8f0b9]">Reserva de auditorio</p>
@@ -251,9 +245,7 @@ export const ReservationDetailModal = ({
             {isLoadingDetails ? <p className="text-sm text-gray-500">Cargando información...</p> : userError ? <p role="alert" className="text-sm font-bold text-red-700">{userError}</p> : registrarUser && (
               <dl className="space-y-3 text-sm">
                 <div className="flex gap-3"><UserRound size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Nombre completo</dt><dd className="text-[#1D1D1B]">{registrarUser.nombre || 'No registrado'}</dd></div></div>
-                <div className="flex gap-3"><Mail size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Correo electrónico</dt><dd className="break-all text-[#1D1D1B]">{registrarUser.correo}</dd></div></div>
                 <div className="flex gap-3"><Building2 size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Dependencia</dt><dd className="text-[#1D1D1B]">{registrarUser.dependencia || 'No registrada'}</dd></div></div>
-                <div className="flex gap-3"><ShieldCheck size={16} className="mt-0.5 shrink-0 text-[#1F8240]" /><div><dt className="font-bold text-gray-500">Rol</dt><dd className="text-[#1D1D1B]">{registrarUser.rol || 'No registrado'}</dd></div></div>
               </dl>
             )}
           </div>
@@ -261,24 +253,24 @@ export const ReservationDetailModal = ({
         </div>
 
         {pdfError && <p role="alert" className="border-t border-red-100 bg-red-50 px-6 py-3 text-sm font-bold text-red-700">{pdfError}</p>}
-        <div className="flex flex-col-reverse gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4 sm:flex-row sm:justify-end">
+        <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 bg-gray-50 px-4 py-3 sm:px-5">
           {canManage && (
             <>
-              <button type="button" onClick={() => onDelete(event)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-4 py-2.5 text-sm font-extrabold text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-300">
-                <Trash2 size={17} />
+              <button type="button" onClick={() => onDelete(event)} className="inline-flex min-w-0 shrink items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-red-200 px-3 py-2 text-sm font-extrabold text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-300">
+                <Trash2 size={16} />
                 Eliminar
               </button>
-              <button type="button" onClick={() => onEdit(event)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#76B82A] px-4 py-2.5 text-sm font-extrabold text-[#1D1D1B] transition hover:bg-[#65a31f] focus:outline-none focus:ring-2 focus:ring-[#76B82A] focus:ring-offset-2">
-                <Pencil size={17} />
+              <button type="button" onClick={() => onEdit(event)} className="inline-flex min-w-0 shrink items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-[#76B82A] px-3 py-2 text-sm font-extrabold text-[#1D1D1B] transition hover:bg-[#65a31f] focus:outline-none focus:ring-2 focus:ring-[#76B82A] focus:ring-offset-2">
+                <Pencil size={16} />
                 Editar
               </button>
             </>
           )}
-          <button type="button" onClick={() => void handleDownloadPdf()} disabled={isLoadingDetails || !registrarUser} className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#1F8240]/25 px-4 py-2.5 text-sm font-extrabold text-[#1F8240] transition hover:bg-[#1F8240]/5 disabled:cursor-not-allowed disabled:opacity-50">
-            <FileDown size={17} />
-            Descargar PDF
+          <button type="button" title="Descargar PDF" aria-label="Descargar PDF" onClick={() => void handleDownloadPdf()} disabled={isLoadingDetails || !registrarUser} className="inline-flex min-w-0 shrink items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[#1F8240]/25 px-3 py-2 text-sm font-extrabold text-[#1F8240] transition hover:bg-[#1F8240]/5 disabled:cursor-not-allowed disabled:opacity-50">
+            <FileDown size={16} />
+            PDF
           </button>
-          <button type="button" onClick={onClose} className="rounded-lg bg-[#1F8240] px-5 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#176b33] focus:outline-none focus:ring-2 focus:ring-[#76B82A] focus:ring-offset-2">Cerrar</button>
+          <button type="button" onClick={onClose} className="inline-flex min-w-0 shrink items-center justify-center whitespace-nowrap rounded-lg bg-[#1F8240] px-3 py-2 text-sm font-extrabold text-white transition hover:bg-[#176b33] focus:outline-none focus:ring-2 focus:ring-[#76B82A] focus:ring-offset-2">Cerrar</button>
         </div>
       </article>
     </div>

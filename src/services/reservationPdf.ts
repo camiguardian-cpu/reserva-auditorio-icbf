@@ -18,10 +18,7 @@ export type ReservationPdfData = {
   }
   registrador: {
     nombre: string
-    correo: string
     dependencia: string
-    cargo: string
-    rol: string
   }
 }
 
@@ -80,10 +77,7 @@ export const generateReservationPdf = (data: ReservationPdfData) => {
 
   y = addSectionTitle(pdf, 'USUARIO QUE REGISTRÓ LA RESERVA', y)
   y = addField(pdf, 'Nombre', data.registrador.nombre, y)
-  y = addField(pdf, 'Correo', data.registrador.correo, y)
   y = addField(pdf, 'Dependencia', data.registrador.dependencia, y)
-  y = addField(pdf, 'Cargo', data.registrador.cargo, y)
-  y = addField(pdf, 'Rol', data.registrador.rol, y)
   y += 5
 
   y = addSectionTitle(pdf, 'INFORMACIÓN DE AUDITORÍA', y)
