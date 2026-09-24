@@ -1,4 +1,4 @@
-import { CalendarDays, LayoutDashboard, LogOut, Menu, Users, X } from 'lucide-react'
+import { CalendarDays, LayoutDashboard, LogOut, Menu, Settings, Users, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 
@@ -8,6 +8,11 @@ import { getCurrentUserRole } from '../services/userService'
 const navigation = [
   { label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
   { label: 'Reservas', to: '/reservas', icon: CalendarDays },
+]
+
+const adminNavigation = [
+  { label: 'Usuarios', to: '/usuarios', icon: Users },
+  { label: 'Configuración', to: '/configuracion', icon: Settings },
 ]
 
 export const Sidebar = () => {
@@ -79,7 +84,7 @@ export const Sidebar = () => {
         </div>
 
         <nav className="flex-1 space-y-2 px-4 py-6" aria-label="Navegación principal">
-          {[...navigation, ...(isAdmin ? [{ label: 'Usuarios', to: '/usuarios', icon: Users }] : [])].map(({ label, to, icon: Icon }) => (
+          {[...navigation, ...(isAdmin ? adminNavigation : [])].map(({ label, to, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}

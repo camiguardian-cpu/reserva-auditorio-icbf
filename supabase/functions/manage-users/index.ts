@@ -102,7 +102,7 @@ serve(async (request) => {
     const { data: profile, error: profileError } = await adminClient
       .from('usuarios')
       .select('rol, estado')
-      .eq('correo', authData.user.email ?? '')
+      .eq('id', authData.user.id)
       .maybeSingle<{ rol: string | null; estado: boolean | null }>()
 
     if (profileError || profile?.rol !== 'administrador' || profile.estado !== true) {
@@ -128,7 +128,7 @@ serve(async (request) => {
       }
 
       const { data: authUsers, error: authLookupError } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
-      const authUser = authUsers.users.find((user) => user.email?.toLowerCase() === profile.correo.toLowerCase())
+      const authUser = authUsers.users.find((user) => user.id === String(body.id))
 
       if (authLookupError || !authUser) {
         return response({ error: 'No se encontró el usuario en Auth.' }, 404)
@@ -228,16 +228,16 @@ serve(async (request) => {
 
       const { data: profileToDelete, error: profileLookupError } = await adminClient
         .from('usuarios')
-        .select('correo')
+        .select('id')
         .eq('id', body.id)
-        .single<{ correo: string }>()
+        .single<{ id: string }>()
 
       if (profileLookupError || !profileToDelete) {
         return response({ error: 'No se encontró el usuario.' }, 404)
       }
 
       const { data: authUsers } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
-      const authUser = authUsers.users.find((user) => user.email?.toLowerCase() === profileToDelete.correo.toLowerCase())
+      const authUser = authUsers.users.find((user) => user.id === profileToDelete.id)
 
       if (authUser) {
         const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(authUser.id)

@@ -193,6 +193,17 @@ export const ReservationDetailModal = ({
               </dl>
             )}
           </div>
+
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <div className="mb-4 flex items-center gap-3"><div className="rounded-lg bg-[#1F8240]/10 p-2 text-[#1F8240]"><ShieldCheck size={19} /></div><p className="text-sm font-extrabold text-[#1D1D1B]">Información del creador</p></div>
+            {isLoadingDetails ? <p className="text-sm text-gray-500">Cargando información...</p> : userError ? <p className="text-sm text-gray-500">Información no disponible.</p> : responsibleUser && (
+              <dl className="space-y-2 text-sm">
+                <div><dt className="font-bold text-gray-500">Usuario creador</dt><dd className="text-[#1D1D1B]">{responsibleUser.nombre || 'No registrado'}</dd></div>
+                <div><dt className="font-bold text-gray-500">Dependencia</dt><dd className="text-[#1D1D1B]">{responsibleUser.dependencia || 'No registrada'}</dd></div>
+                <div><dt className="font-bold text-gray-500">Cargo</dt><dd className="text-[#1D1D1B]">{responsibleUser.cargo || 'No registrado'}</dd></div>
+              </dl>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-col-reverse gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4 sm:flex-row sm:justify-end">

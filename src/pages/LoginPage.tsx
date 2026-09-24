@@ -32,10 +32,6 @@ export const LoginPage = () => {
         password,
       })
 
-console.log('AUTH ERROR:', authError);
-console.log('AUTH DATA:', authData);
-
-
       if (authError || !authData.user) {
         throw new Error(authError?.message ?? 'No fue posible autenticar el usuario.')
       }
@@ -43,7 +39,8 @@ console.log('AUTH DATA:', authData);
 const { data: usuario, error: usuarioError } = await supabase
   .from('usuarios')
   .select('*')
-  .eq('correo', authData.user.email)
+  .eq('id', authData.user.id)
+  .maybeSingle()
 
 
 
@@ -54,20 +51,20 @@ if (usuarioError) {
   throw new Error(usuarioError.message);
 }
 
-if (!usuario || usuario.length === 0) {
+if (!usuario) {
   throw new Error('No se encontró el perfil del usuario.');
 }
 
         
 
-      if (!usuario[0].estado) {
+      if (!usuario.estado) {
         await supabase.auth.signOut()
         throw new Error('Tu usuario está inactivo. Contacta al administrador.')
       }
 
   if (
-  usuario[0].rol !== 'administrador' &&
-  usuario[0].rol !== 'usuario'
+  usuario.rol !== 'administrador' &&
+  usuario.rol !== 'usuario'
 )
         
         

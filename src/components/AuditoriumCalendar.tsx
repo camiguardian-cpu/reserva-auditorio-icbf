@@ -4,7 +4,7 @@ import timeGridPlugin from '@fullcalendar/timegrid'
 import { useEffect, useState } from 'react'
 import type { EventApi, EventInput } from '@fullcalendar/core'
 
-import { ReservationDetailModal } from './ReservationDetailModal'
+import { ReservationDetailsModal } from './ReservationDetailsModal'
 import { ReservationEditModal } from './ReservationEditModal'
 import { registerAudit } from '../services/audit'
 import { supabase } from '../services/supabase'
@@ -70,9 +70,10 @@ const mapReservationToEvent = (reservation: ReservaRow): EventInput | null => {
 
 type AuditoriumCalendarProps = {
   refreshKey?: number
+  publicMode?: boolean
 }
 
-export const AuditoriumCalendar = ({ refreshKey = 0 }: AuditoriumCalendarProps) => {
+export const AuditoriumCalendar = ({ refreshKey = 0, publicMode = false }: AuditoriumCalendarProps) => {
   const [events, setEvents] = useState<EventInput[]>([])
   const [selectedEvent, setSelectedEvent] = useState<EventApi | null>(null)
   const [editingEvent, setEditingEvent] = useState<EventApi | null>(null)
@@ -89,20 +90,25 @@ export const AuditoriumCalendar = ({ refreshKey = 0 }: AuditoriumCalendarProps) 
       setIsLoading(true)
       setError('')
 
-      const { data: authData } = await supabase.auth.getUser()
-      const authenticatedUser = authData.user
-      setCurrentUserId(authenticatedUser?.id ?? null)
-
-      if (authenticatedUser?.email) {
-        const { data: userProfile } = await supabase
-          .from('usuarios')
-          .select('rol')
-          .eq('correo', authenticatedUser.email)
-          .maybeSingle<{ rol: string | null }>()
-
-        setRole(userProfile?.rol === 'administrador' || userProfile?.rol === 'usuario' ? userProfile.rol : null)
-      } else {
+      if (publicMode) {
+        setCurrentUserId(null)
         setRole(null)
+      } else {
+        const { data: authData } = await supabase.auth.getUser()
+        const authenticatedUser = authData.user
+        setCurrentUserId(authenticatedUser?.id ?? null)
+
+        if (authenticatedUser?.id) {
+          const { data: userProfile } = await supabase
+            .from('usuarios')
+            .select('rol')
+            .eq('id', authenticatedUser.id)
+            .maybeSingle<{ rol: string | null }>()
+
+          setRole(userProfile?.rol === 'administrador' || userProfile?.rol === 'usuario' ? userProfile.rol : null)
+        } else {
+          setRole(null)
+        }
       }
 
       const { data, error: queryError } = await supabase
@@ -132,7 +138,7 @@ export const AuditoriumCalendar = ({ refreshKey = 0 }: AuditoriumCalendarProps) 
     return () => {
       isMounted = false
     }
-  }, [refreshKey, internalRefreshKey])
+  }, [publicMode, refreshKey, internalRefreshKey])
 
   const handleDelete = async (event: EventApi) => {
     if (!window.confirm('¿Está seguro de eliminar esta reserva?')) {
@@ -168,12 +174,12 @@ export const AuditoriumCalendar = ({ refreshKey = 0 }: AuditoriumCalendarProps) 
     <div className="mt-8 rounded-xl border border-[#1F8240]/15 bg-white p-3 shadow-sm sm:p-5">
       <div className="mb-5 flex flex-col gap-2 border-b border-gray-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-lg font-extrabold text-[#1D1D1B]">Agenda institucional</h3>
-          <p className="text-sm text-gray-500">Visualización de reservas del auditorio</p>
+          <h3 className="text-lg font-extrabold text-[#1D1D1B]">{publicMode ? 'Agenda pública del auditorio' : 'Agenda institucional'}</h3>
+          <p className="text-sm text-gray-500">Consulta la programación y disponibilidad del auditorio</p>
         </div>
-        <span className="inline-flex w-fit items-center gap-2 rounded-full bg-[#76B82A]/15 px-3 py-1 text-xs font-bold text-[#1F8240]">
+          <span className="inline-flex w-fit items-center gap-2 rounded-full bg-[#76B82A]/15 px-3 py-1 text-xs font-bold text-[#1F8240]">
           <span className="h-2 w-2 rounded-full bg-[#76B82A]" />
-          Solo lectura
+          {publicMode ? 'Consulta pública' : 'Gestión autenticada'}
         </span>
       </div>
 
@@ -217,7 +223,7 @@ export const AuditoriumCalendar = ({ refreshKey = 0 }: AuditoriumCalendarProps) 
           noEventsText="No hay reservas para mostrar"
         />
       )}
-      <ReservationDetailModal
+      <ReservationDetailsModal
         event={selectedEvent}
         currentUserId={currentUserId}
         role={role}

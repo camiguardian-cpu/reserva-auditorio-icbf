@@ -1,0 +1,1 @@
+export { ReservationDetailModal as ReservationDetailsModal } from './ReservationDetailModal'

@@ -71,16 +71,16 @@ export const resetUserPassword = async (id: string | number): Promise<string> =>
 
 export const getCurrentUserRole = async (): Promise<UserRole | null> => {
   const { data: authData } = await supabase.auth.getUser()
-  const email = authData.user?.email
+  const userId = authData.user?.id
 
-  if (!email) {
+  if (!userId) {
     return null
   }
 
   const { data } = await supabase
     .from('usuarios')
     .select('rol, estado')
-    .eq('correo', email)
+    .eq('id', userId)
     .maybeSingle<{ rol: string | null; estado: boolean | null }>()
 
   if (!data?.estado || (data.rol !== 'administrador' && data.rol !== 'usuario')) {
